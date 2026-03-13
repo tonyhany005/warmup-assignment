@@ -168,8 +168,142 @@ function metQuota(date, activeTime) {
 // Returns: object with 10 properties or empty object {}
 // ============================================================
 function addShiftRecord(textFile, shiftObj) {
-    // TODO: Implement this function
+    function amPmToSeconds(timeStr) {
+        timeStr = timeStr.trim().toLowerCase();
+        let parts = timeStr.split(' ');
+        let period = parts[1];
+        let timeParts = parts[0].split(':');
+        let hours = parseInt(timeParts[0]);
+        let minutes = parseInt(timeParts[1]);
+        let seconds = parseInt(timeParts[2]);
+        if (period === 'am') {
+            if (hours === 12) hours = 0;
+        } else {
+            if (hours !== 12) hours += 12;
+        }
+        return hours * 3600 + minutes * 60 + seconds;
+    }
+
+    function toSeconds(timeStr) {
+        timeStr = timeStr.trim();
+        let parts = timeStr.split(':');
+        let hours = parseInt(parts[0]);
+        let minutes = parseInt(parts[1]);
+        let seconds = parseInt(parts[2]);
+        return hours * 3600 + minutes * 60 + seconds;
+    }
+
+    function secondsToHMS(totalSeconds) {
+        let h = Math.floor(totalSeconds / 3600);
+        let m = Math.floor((totalSeconds % 3600) / 60);
+        let s = totalSeconds % 60;
+        let mm = m < 10 ? '0' + m : '' + m;
+        let ss = s < 10 ? '0' + s : '' + s;
+        return h + ':' + mm + ':' + ss;
+    }
+
+    function calcShiftDuration(startTime, endTime) {
+        let startSeconds = amPmToSeconds(startTime);
+        let endSeconds = amPmToSeconds(endTime);
+        let diff = endSeconds - startSeconds;
+        if (diff < 0) diff += 24 * 3600;
+        return secondsToHMS(diff);
+    }
+
+    function calcIdleTime(startTime, endTime) {
+        const DELIVERY_START = 8 * 3600;
+        const DELIVERY_END = 22 * 3600;
+        let startSeconds = amPmToSeconds(startTime);
+        let endSeconds = amPmToSeconds(endTime);
+        let idleSeconds = 0;
+        if (startSeconds < DELIVERY_START) {
+            let earlyEnd = Math.min(endSeconds, DELIVERY_START);
+            idleSeconds += earlyEnd - startSeconds;
+        }
+        if (endSeconds > DELIVERY_END) {
+            let lateStart = Math.max(startSeconds, DELIVERY_END);
+            idleSeconds += endSeconds - lateStart;
+        }
+        return secondsToHMS(idleSeconds);
+    }
+
+    function calcActiveTime(shiftDuration, idleTime) {
+        let shiftSeconds = toSeconds(shiftDuration);
+        let idleSeconds = toSeconds(idleTime);
+        return secondsToHMS(shiftSeconds - idleSeconds);
+    }
+
+    function calcMetQuota(date, activeTime) {
+        let dateParts = date.trim().split('-');
+        let year = parseInt(dateParts[0]);
+        let month = parseInt(dateParts[1]);
+        let day = parseInt(dateParts[2]);
+        let isEid = (year === 2025 && month === 4 && day >= 10 && day <= 30);
+        const EID_QUOTA = 6 * 3600;
+        const NORMAL_QUOTA = 8 * 3600 + 24 * 60;
+        let quota = isEid ? EID_QUOTA : NORMAL_QUOTA;
+        return toSeconds(activeTime) >= quota;
+    }
+
+    let lines = fs.readFileSync(textFile, 'utf8').split('\n').filter(line => line.trim() !== '');
+
+    for (let line of lines) {
+        let cols = line.split(',');
+        if (cols[0].trim() === shiftObj.driverID.trim() && cols[2].trim() === shiftObj.date.trim()) {
+            return {};
+        }
+    }
+
+    let shiftDuration = calcShiftDuration(shiftObj.startTime, shiftObj.endTime);
+    let idleTime      = calcIdleTime(shiftObj.startTime, shiftObj.endTime);
+    let activeTime    = calcActiveTime(shiftDuration, idleTime);
+    let quota         = calcMetQuota(shiftObj.date, activeTime);
+
+    let newRecord = {
+        driverID:      shiftObj.driverID,
+        driverName:    shiftObj.driverName,
+        date:          shiftObj.date,
+        startTime:     shiftObj.startTime,
+        endTime:       shiftObj.endTime,
+        shiftDuration: shiftDuration,
+        idleTime:      idleTime,
+        activeTime:    activeTime,
+        metQuota:      quota,
+        hasBonus:      false
+    };
+
+    let newLine = [
+        newRecord.driverID,
+        newRecord.driverName,
+        newRecord.date,
+        newRecord.startTime,
+        newRecord.endTime,
+        newRecord.shiftDuration,
+        newRecord.idleTime,
+        newRecord.activeTime,
+        newRecord.metQuota,
+        newRecord.hasBonus
+    ].join(',');
+
+    let lastIndex = -1;
+    for (let i = 0; i < lines.length; i++) {
+        let cols = lines[i].split(',');
+        if (cols[0].trim() === shiftObj.driverID.trim()) {
+            lastIndex = i;
+        }
+    }
+
+    if (lastIndex === -1) {
+        lines.push(newLine);
+    } else {
+        lines.splice(lastIndex + 1, 0, newLine);
+    }
+
+    fs.writeFileSync(textFile, lines.join('\n'), 'utf8');
+
+    return newRecord;
 }
+
 
 // ============================================================
 // Function 6: setBonus(textFile, driverID, date, newValue)
@@ -180,9 +314,19 @@ function addShiftRecord(textFile, shiftObj) {
 // Returns: nothing (void)
 // ============================================================
 function setBonus(textFile, driverID, date, newValue) {
-    // TODO: Implement this function
-}
+    let lines = fs.readFileSync(textFile, 'utf8').split('\n').filter(line => line.trim() !== '');
 
+    for (let i = 0; i < lines.length; i++) {
+        let cols = lines[i].split(',');
+        if (cols[0].trim() === driverID.trim() && cols[2].trim() === date.trim()) {
+            cols[9] = newValue;
+            lines[i] = cols.join(',');
+            break;
+        }
+    }
+
+    fs.writeFileSync(textFile, lines.join('\n'), 'utf8');
+}
 // ============================================================
 // Function 7: countBonusPerMonth(textFile, driverID, month)
 // textFile: (typeof string) path to shifts text file
