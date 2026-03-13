@@ -50,8 +50,52 @@ function getShiftDuration(startTime, endTime) {
 // Returns: string formatted as h:mm:ss
 // ============================================================
 function getIdleTime(startTime, endTime) {
-    // TODO: Implement this function
+    function amPmToSeconds(timeStr) {
+        timeStr = timeStr.trim().toLowerCase();
+        let parts = timeStr.split(' ');
+        let period = parts[1];
+        let timeParts = parts[0].split(':');
+        let hours = parseInt(timeParts[0]);
+        let minutes = parseInt(timeParts[1]);
+        let seconds = parseInt(timeParts[2]);
+        if (period === 'am') {
+            if (hours === 12) hours = 0;
+        } else {
+            if (hours !== 12) hours += 12;
+        }
+        return hours * 3600 + minutes * 60 + seconds;
+    }
+
+    function secondsToHMS(totalSeconds) {
+        let h = Math.floor(totalSeconds / 3600);
+        let m = Math.floor((totalSeconds % 3600) / 60);
+        let s = totalSeconds % 60;
+        let mm = m < 10 ? '0' + m : '' + m;
+        let ss = s < 10 ? '0' + s : '' + s;
+        return h + ':' + mm + ':' + ss;
+    }
+
+    const DELIVERY_START = 8 * 3600;
+    const DELIVERY_END = 22 * 3600;
+
+    let startSeconds = amPmToSeconds(startTime);
+    let endSeconds = amPmToSeconds(endTime);
+
+    let idleSeconds = 0;
+
+    if (startSeconds < DELIVERY_START) {
+        let earlyEnd = Math.min(endSeconds, DELIVERY_START);
+        idleSeconds += earlyEnd - startSeconds;
+    }
+
+    if (endSeconds > DELIVERY_END) {
+        let lateStart = Math.max(startSeconds, DELIVERY_END);
+        idleSeconds += endSeconds - lateStart;
+    }
+
+    return secondsToHMS(idleSeconds);
 }
+
 
 // ============================================================
 // Function 3: getActiveTime(shiftDuration, idleTime)
