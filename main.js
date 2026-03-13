@@ -334,8 +334,29 @@ function setBonus(textFile, driverID, date, newValue) {
 // month: (typeof string) formatted as mm or m
 // Returns: number (-1 if driverID not found)
 // ============================================================
+
 function countBonusPerMonth(textFile, driverID, month) {
-    // TODO: Implement this function
+    let lines = fs.readFileSync(textFile, 'utf8').split('\n').filter(line => line.trim() !== '');
+
+    let targetMonth  = parseInt(month);
+    let driverExists = false;
+    let bonusCount   = 0;
+
+    for (let line of lines) {
+        let cols = line.split(',');
+        if (cols[0].trim() === driverID.trim()) {
+            driverExists = true;
+            let dateParts   = cols[2].trim().split('-');
+            let recordMonth = parseInt(dateParts[1]);
+            if (recordMonth === targetMonth && cols[9].trim().toLowerCase() === 'true') {
+                bonusCount++;
+            }
+        }
+    }
+
+    if (!driverExists) return -1;
+
+    return bonusCount;
 }
 
 // ============================================================
@@ -346,8 +367,43 @@ function countBonusPerMonth(textFile, driverID, month) {
 // Returns: string formatted as hhh:mm:ss
 // ============================================================
 function getTotalActiveHoursPerMonth(textFile, driverID, month) {
-    // TODO: Implement this function
+    function toSeconds(timeStr) {
+        timeStr = timeStr.trim();
+        let parts = timeStr.split(':');
+        let hours = parseInt(parts[0]);
+        let minutes = parseInt(parts[1]);
+        let seconds = parseInt(parts[2]);
+        return hours * 3600 + minutes * 60 + seconds;
+    }
+
+    function secondsToHMS(totalSeconds) {
+        let h = Math.floor(totalSeconds / 3600);
+        let m = Math.floor((totalSeconds % 3600) / 60);
+        let s = totalSeconds % 60;
+        let mm = m < 10 ? '0' + m : '' + m;
+        let ss = s < 10 ? '0' + s : '' + s;
+        return h + ':' + mm + ':' + ss;
+    }
+
+    let lines = fs.readFileSync(textFile, 'utf8').split('\n').filter(line => line.trim() !== '');
+
+    let targetMonth  = parseInt(month);
+    let totalSeconds = 0;
+
+    for (let line of lines) {
+        let cols = line.split(',');
+        if (cols[0].trim() === driverID.trim()) {
+            let dateParts   = cols[2].trim().split('-');
+            let recordMonth = parseInt(dateParts[1]);
+            if (recordMonth === targetMonth) {
+                totalSeconds += toSeconds(cols[7].trim());
+            }
+        }
+    }
+
+    return secondsToHMS(totalSeconds);
 }
+
 
 // ============================================================
 // Function 9: getRequiredHoursPerMonth(textFile, rateFile, bonusCount, driverID, month)
